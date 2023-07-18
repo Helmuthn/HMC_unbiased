@@ -5,6 +5,10 @@
 
 This package represents a quick implementation of the unbiased Hamiltonian Monte Carlo algorithm.
 
+It can be installed through pip using
+
+    pip install git+https://github.com/Helmuthn/HMC_unbiased.git
+
 
 The algorithm comes from the paper:
 

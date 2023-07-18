@@ -3,11 +3,24 @@ site_name: Unbiased Hamiltonian Monte Carlo
 theme:
   name: material
   features:
-    - navigation.sections  # Sections are included in the navigation on the left.
-    - toc.integrate  # Table of contents is integrated on the left; does not appear separately on the right.
+    - navigation.sections  
+    - toc.integrate  
+    - header.autohide
+  icon:
+    repo: fontawesome/brands/github
+  palette:
+    primary: blue grey
+
+repo_url: https://github.com/Helmuthn/HMC_unbiased
+
+extra_javascript:
+  - javascripts/katex.js 
+  - https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.7/katex.min.js  
+  - https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.7/contrib/auto-render.min.js
 
 extra_css:
   - _static/custom.css
+  - https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.7/katex.min.css
 
 markdown_extensions:
     - admonition
