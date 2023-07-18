@@ -17,7 +17,7 @@ def isotropic_gaussian_pdf(x: Float[Array, " dim"],
     Returns:
         The evaluation of the multivariate Gaussian pdf at a point
     """
-    squared_distance = jnp.sum(jnp.square(x - mu))
+    squared_distance = -jnp.sum(jnp.square(x - mu))
     normalized_distance = squared_distance / (2 * std**2)
     return jnp.exp(normalized_distance)/ (std**x.shape[0] * (2*jnp.pi)**(x.shape[0]/2))
 

@@ -13,6 +13,15 @@ class Test_isotropic_gaussian_pdf:
 
         test_value = isotropic_gaussian_pdf(x, mu, std)
         assert test_value == approx(1./jnp.sqrt(2*jnp.pi))
+    
+    def test_standard_offset(self):
+        x = jnp.ones(1)
+        mu = jnp.zeros(1)
+        std = 1
+
+        test_value = isotropic_gaussian_pdf(x, mu, std)
+        assert test_value == approx(jnp.exp(-1/2)/jnp.sqrt(2*jnp.pi))
+
 
 
 class Test_leapfrog_step:
