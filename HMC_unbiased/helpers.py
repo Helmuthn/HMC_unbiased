@@ -4,6 +4,16 @@ import jax.numpy as jnp
 
 import jax
 
+def construct_potential(marginal: Callable):
+    """Convert an unnormalized marginal distribution into a potential function.
+    
+    Given an unnormalized marginal distribution, return a potential function
+    and the gradient of the potential function.
+    """
+    potential = lambda x: jnp.log(marginal(x))
+    potential_grad = jax.grad(potential)
+    return jax.jit(potential), jax.jit(potential_grad)
+
 def isotropic_gaussian_pdf(x: Float[Array, " dim"], 
                            mu: Float[Array, " dim"],
                            std: Float) -> Float:

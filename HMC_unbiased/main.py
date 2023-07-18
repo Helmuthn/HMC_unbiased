@@ -4,6 +4,44 @@ from typing import Callable
 
 from helpers import sample_gaussian_max_coupling, HMC_step
 
+def unbiased_HMC_step(Q1: Float[Array, " dim"], 
+                      Q2: Float[Array, " dim"], 
+                      potential: Callable[[Float[Array, " dim"]], Float],
+                      potential_grad: Callable[[Float[Array, " dim"]], 
+                                                Float[Array, " dim"]], 
+                      stepsize: Float, 
+                      gamma: Float,
+                      std: Float,
+                      marginal: Callable[[Float[Array, " dim"]], Float],
+                      key: Key
+            ) -> tuple[Float[Array, " dim"], Float[Array, " dim"]] :
+    """Completes a step of unbiased Hamiltonian Monte Carlo.
+
+    Completes a step of the unbiased HMC process by randomly sleecting
+    between HMC and a maximally coupled random walk Metropolis-Hastings process.
+    
+    Args:
+        Q1: Current state of the first Markov chain
+        Q2: Current state of the second Markov chain
+        potential: Potential function
+        potential_grad: Gradient of the potential function
+        stepsize: Stepsize for leapfrom integration in HMC
+        gamma: Probability of selecting random walk 
+        std: Standard deviation for random walk
+        marginal: Target marginal distribution
+        key: Jax pseudorandom number key
+    
+    Returns:
+        The result of an unbiased step of Hamiltonian Monte Carlo    
+    """
+
+    key1, key2 = jax.random.split(key)
+    random_walk_choice = jax.random.bernoulli(key1, gamma)
+    if random_walk_choice:
+        return coupled_randomwalk_step(Q1, Q2, std, marginal, key2)
+    else:
+        return coupled_HMC_step(Q1, Q2, potential, potential_grad, stepsize, key2)
+
 
 def coupled_HMC_step(Q1: Float[Array, " dim"], 
                      Q2: Float[Array, " dim"], 
