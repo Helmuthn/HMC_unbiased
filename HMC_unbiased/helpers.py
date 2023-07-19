@@ -4,15 +4,31 @@ import jax.numpy as jnp
 
 import jax
 
-def construct_potential(marginal: Callable):
+def construct_potential(marginal: Callable[[Float[Array, " dim"]], Float]
+            ) -> tuple[Callable[[Float[Array, " dim"]], Float],
+                       Callable[[Float[Array, " dim"]], Float[Array, " dim"]]]:
     """Convert an unnormalized marginal distribution into a potential function.
     
     Given an unnormalized marginal distribution, return a potential function
     and the gradient of the potential function.
+
+    Args:
+        marginal: Marginal distribution
+
+    Returns:
+        A tuple `(potential, potential_grad)` of jit compiled functions 
+        representing the potential (log) of the distributiona and the
+        gradient of the potential.
+
+    Note:
+        Adds a small value to the marginal before computing the log in order to
+        stablize the computation. This results in incorrect derivatives for
+        regions with low probability.
     """
-    potential = lambda x: jnp.log(marginal(x))
+    potential = lambda x: jnp.log(marginal(x) + 1e-32)
     potential_grad = jax.grad(potential)
     return jax.jit(potential), jax.jit(potential_grad)
+
 
 def isotropic_gaussian_pdf(x: Float[Array, " dim"], 
                            mu: Float[Array, " dim"],
@@ -29,7 +45,8 @@ def isotropic_gaussian_pdf(x: Float[Array, " dim"],
     """
     squared_distance = -jnp.sum(jnp.square(x - mu))
     normalized_distance = squared_distance / (2 * std**2)
-    return jnp.exp(normalized_distance)/ (std**x.shape[0] * (2*jnp.pi)**(x.shape[0]/2))
+    density = jnp.exp(normalized_distance)/ (std**x.shape[0] * (2*jnp.pi)**(x.shape[0]/2))
+    return density
 
 
 def leapfrog_step(p: Float[Array, " dim"], 
@@ -121,7 +138,7 @@ def sample_gaussian_max_coupling(x: Float[Array, " dim"],
     if W < y_prob:
         return x_proposed, x_proposed
     else:
-        W = 0
+        W = -1
         while W <= x_prob:
             subkey, key = jax.random.split(key)
             y_proposed = y + std * jax.random.normal(subkey, y.shape)
@@ -139,7 +156,8 @@ def HMC_step(p: Float[Array, " dim"],
              potential: Callable[[Float[Array, " dim"]], Float], 
              potential_grad: Callable[[Float[Array, " dim"]], 
                                        Float[Array, " dim"]],  
-             stepsize: Float
+             step_size: Float,
+             num_steps: int
         ) -> Float[Array, " dim"]:
     """Given the random variables, compute a step of Hamiltonian Monte Carlo.
     
@@ -149,12 +167,19 @@ def HMC_step(p: Float[Array, " dim"],
         U: Uniform random variable to determine acceptance
         potential: Potential function for target distribution
         potential_grad: Gradient of the potential function
-        stepsize: Stepsize for the leap-frog integration
+        step_size: Step size for the leap-frog integration
+        num_steps: Number of steps for the leap-frog integration
     
     Returns:
         A new state variable from a single step of Hamiltonian Monte Carlo.
     """
-    p_proposed, q_proposed = leapfrog_step(p, q, potential_grad, stepsize)
+    p_proposed, q_proposed = p, q
+    for i in range(num_steps):
+        p_proposed, q_proposed = leapfrog_step(p_proposed, 
+                                               q_proposed, 
+                                               potential_grad, 
+                                               step_size)
+
     if U < HMC_acceptance(p, q, p_proposed, q_proposed, potential):
         return q_proposed
     else:

@@ -2,14 +2,15 @@ import jax
 from jaxtyping import Float, Array, Key
 from typing import Callable
 
-from helpers import sample_gaussian_max_coupling, HMC_step
+from .helpers import sample_gaussian_max_coupling, HMC_step
 
 def unbiased_HMC_step(Q1: Float[Array, " dim"], 
                       Q2: Float[Array, " dim"], 
                       potential: Callable[[Float[Array, " dim"]], Float],
                       potential_grad: Callable[[Float[Array, " dim"]], 
                                                 Float[Array, " dim"]], 
-                      stepsize: Float, 
+                      step_size: Float, 
+                      num_steps: int,
                       gamma: Float,
                       std: Float,
                       marginal: Callable[[Float[Array, " dim"]], Float],
@@ -25,7 +26,8 @@ def unbiased_HMC_step(Q1: Float[Array, " dim"],
         Q2: Current state of the second Markov chain
         potential: Potential function
         potential_grad: Gradient of the potential function
-        stepsize: Stepsize for leapfrom integration in HMC
+        step_size: Stepsize for leap-frog integration in HMC
+        num_steps: Number of steps for leap-frog integration in HMC
         gamma: Probability of selecting random walk 
         std: Standard deviation for random walk
         marginal: Target marginal distribution
@@ -40,7 +42,10 @@ def unbiased_HMC_step(Q1: Float[Array, " dim"],
     if random_walk_choice:
         return coupled_randomwalk_step(Q1, Q2, std, marginal, key2)
     else:
-        return coupled_HMC_step(Q1, Q2, potential, potential_grad, stepsize, key2)
+        return coupled_HMC_step(Q1, Q2, 
+                                potential, potential_grad, 
+                                step_size, num_steps, 
+                                key2)
 
 
 def coupled_HMC_step(Q1: Float[Array, " dim"], 
@@ -48,7 +53,8 @@ def coupled_HMC_step(Q1: Float[Array, " dim"],
                      potential: Callable[[Float[Array, " dim"]], Float],
                      potential_grad: Callable[[Float[Array, " dim"]], 
                                     Float[Array, " dim"]], 
-                     stepsize: Float, 
+                     step_size: Float, 
+                     num_steps: int,
                      key: Key
             ) -> tuple[Float[Array, " dim"], Float[Array, " dim"]] :
     """ Completes a coupled step of Hamiltonian Monte Carlo.
@@ -62,7 +68,8 @@ def coupled_HMC_step(Q1: Float[Array, " dim"],
         Q2: Position in the second chain
         potential: Potential function
         potential_grad: Gradient of the potential function
-        stepsize: Stepsize for leapfrog integration
+        step_size: Step size for leap-frog integration
+        num_steps: Number of steps for leap-frog integration
         key: Jax pseudorandom number key
     
     Returns:
@@ -75,15 +82,20 @@ def coupled_HMC_step(Q1: Float[Array, " dim"],
     momentum = jax.random.normal(key1, Q1.shape)
     U = jax.random.uniform(key2)
 
-    Q1_out = HMC_step(momentum, Q1, U, potential, potential_grad, stepsize)
-    Q2_out = HMC_step(momentum, Q2, U, potential, potential_grad, stepsize)
+    Q1_out = HMC_step(momentum, Q1, U, 
+                      potential, potential_grad, 
+                      step_size, num_steps)
+
+    Q2_out = HMC_step(momentum, Q2, U, 
+                      potential, potential_grad, 
+                      step_size, num_steps)
     
     return Q1_out, Q2_out
 
 
 
-def coupled_randomwalk_step(x: Float[Array, " dim"], 
-                            y: Float[Array, " dim"], 
+def coupled_randomwalk_step(Q1: Float[Array, " dim"], 
+                            Q2: Float[Array, " dim"], 
                             std: Float, 
                             marginal: Callable[[Float[Array, " dim"]], Float], 
                             key: Key
@@ -96,8 +108,8 @@ def coupled_randomwalk_step(x: Float[Array, " dim"],
     time with high probability.
     
     Args:
-        x: State of the first Markov chain
-        y: State of the second Markov chain
+        Q1: State of the first Markov chain
+        Q2: State of the second Markov chain
         std: Standard deviation of the proposal Gaussians.
         marginal: Target marginal distribution
         key: Jax pseudorandom number key
@@ -107,21 +119,21 @@ def coupled_randomwalk_step(x: Float[Array, " dim"],
     """
 
     key1, key2 = jax.random.split(key, 2)
-    x_proposed, y_proposed = sample_gaussian_max_coupling(x, y, std, key1)
+    Q1_proposed, Q2_proposed = sample_gaussian_max_coupling(Q1, Q2, std, key1)
 
-    x_acceptance_probability = min(1, marginal(x_proposed)/marginal(x))
-    y_acceptance_probability = min(1, marginal(y_proposed)/marginal(y))
+    Q1_acceptance_probability = min(1, marginal(Q1_proposed)/marginal(Q1))
+    Q2_acceptance_probability = min(1, marginal(Q2_proposed)/marginal(Q2))
 
     U = jax.random.uniform(key2)
 
-    if U < x_acceptance_probability:
-        x_out = x_proposed
+    if U < Q1_acceptance_probability:
+        Q1_out = Q1_proposed
     else:
-        x_out = x
+        Q1_out = Q1
 
-    if U < y_acceptance_probability:
-        y_out = y_proposed
+    if U < Q2_acceptance_probability:
+        Q2_out = Q2_proposed
     else:
-        y_out = y
+        Q2_out = Q2
 
-    return x_out, y_out
+    return Q1_out, Q2_out
