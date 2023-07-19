@@ -4,9 +4,7 @@ import jax.numpy as jnp
 
 import jax
 
-def construct_potential(marginal: Callable[[Float[Array, " dim"]], Float]
-            ) -> tuple[Callable[[Float[Array, " dim"]], Float],
-                       Callable[[Float[Array, " dim"]], Float[Array, " dim"]]]:
+def construct_potential(marginal: Callable[[Float[Array, " dim"]], Float]):
     """Convert an unnormalized marginal distribution into a potential function.
     
     Given an unnormalized marginal distribution, return a potential function
@@ -17,8 +15,8 @@ def construct_potential(marginal: Callable[[Float[Array, " dim"]], Float]
 
     Returns:
         A tuple `(potential, potential_grad)` of jit compiled functions 
-        representing the potential (log) of the distributiona and the
-        gradient of the potential.
+            representing the potential (log) of the distributiona and the
+            gradient of the potential.
 
     Warning:
         Adds a small value to the marginal before computing the log in order to
@@ -64,8 +62,8 @@ def leapfrog_step(p: Float[Array, " dim"],
         stepsize: Integrator Step Size
      
     Returns:
-        `(p_out, q_out)` where `p_out` and `q_out` are the 
-        updated momentum and position.
+        A tuple `(p_out, q_out)`, where `p_out` and `q_out` are the 
+            updated momentum and position, respectively.
     """
     p_mid = p - stepsize/2 * potential_grad(q)
     q_out = q + stepsize * p_mid
@@ -125,7 +123,7 @@ def sample_gaussian_max_coupling(x: Float[Array, " dim"],
     
     Returns:
         A realization of a pair of Gaussian random variables 
-        with maximal coupling.
+            with maximal coupling.
     """
     subkey, key = jax.random.split(key)
     x_proposed = x + std*jax.random.normal(subkey, x.shape)
