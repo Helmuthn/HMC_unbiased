@@ -20,7 +20,7 @@ def construct_potential(marginal: Callable[[Float[Array, " dim"]], Float]
         representing the potential (log) of the distributiona and the
         gradient of the potential.
 
-    Note:
+    Warning:
         Adds a small value to the marginal before computing the log in order to
         stablize the computation. This results in incorrect derivatives for
         regions with low probability.

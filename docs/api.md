@@ -12,6 +12,8 @@
 
 ::: HMC_unbiased.helpers.isotropic_gaussian_pdf
 
+::: HMC_unbiased.helpers.construct_potential
+
 ::: HMC_unbiased.helpers.leapfrog_step
 
 ::: HMC_unbiased.helpers.hamiltonian
