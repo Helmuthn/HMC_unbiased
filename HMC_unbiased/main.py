@@ -4,6 +4,8 @@ from typing import Callable
 
 from .helpers import sample_gaussian_max_coupling, HMC_step
 
+from functools import partial
+
 def unbiased_HMC_step(Q1: Float[Array, " dim"], 
                       Q2: Float[Array, " dim"], 
                       potential: Callable[[Float[Array, " dim"]], Float],
@@ -48,6 +50,7 @@ def unbiased_HMC_step(Q1: Float[Array, " dim"],
                                 key2)
 
 
+@partial(jax.jit, static_argnums=(2,3))
 def coupled_HMC_step(Q1: Float[Array, " dim"], 
                      Q2: Float[Array, " dim"], 
                      potential: Callable[[Float[Array, " dim"]], Float],

@@ -3,6 +3,7 @@ from typing import Callable
 import jax.numpy as jnp
 
 import jax
+from functools import partial
 
 def construct_potential(marginal: Callable[[Float[Array, " dim"]], Float]):
     """Convert an unnormalized marginal distribution into a potential function.
@@ -19,15 +20,16 @@ def construct_potential(marginal: Callable[[Float[Array, " dim"]], Float]):
             gradient of the potential.
 
     Warning:
-        Adds a small value to the marginal before computing the log in order to
-        stablize the computation. This results in incorrect derivatives for
-        regions with low probability.
+        Magnitude of the elements of the gradient is clipped to 10 to prevent
+            issues with numerical instabilities.
     """
-    potential = lambda x: jnp.log(marginal(x) + 1e-32)
+    potential = lambda x: -1 * jnp.log(marginal(x))
     potential_grad = jax.grad(potential)
-    return jax.jit(potential), jax.jit(potential_grad)
+    potential_grad_clipped = lambda x: jnp.clip(potential_grad(x), -10, 10)
+    return jax.jit(potential), jax.jit(potential_grad_clipped)
 
 
+@jax.jit
 def isotropic_gaussian_pdf(x: Float[Array, " dim"], 
                            mu: Float[Array, " dim"],
                            std: Float) -> Float:
@@ -47,11 +49,12 @@ def isotropic_gaussian_pdf(x: Float[Array, " dim"],
     return density
 
 
+@partial(jax.jit, static_argnums=(2,))
 def leapfrog_step(p: Float[Array, " dim"], 
                   q: Float[Array, " dim"], 
                   potential_grad: Callable[[Float[Array, " dim"]], 
-                                    Float[Array, " dim"]], 
-                  stepsize: Float
+                                            Float[Array, " dim"]], 
+                  step_size: Float
                 ) -> tuple[Float[Array, " dim"], Float[Array, " dim"]]:
     """Completes a step of leapfrog integation.
     
@@ -59,19 +62,20 @@ def leapfrog_step(p: Float[Array, " dim"],
         p: Momentum of the system
         q: Position of the system
         potential_grad: Gradient of the potential function
-        stepsize: Integrator Step Size
+        step_size: Integrator Step Size
      
     Returns:
         A tuple `(p_out, q_out)`, where `p_out` and `q_out` are the 
             updated momentum and position, respectively.
     """
-    p_mid = p - stepsize/2 * potential_grad(q)
-    q_out = q + stepsize * p_mid
-    p_out = p_mid + stepsize/2 * potential_grad(q_out)
+    p_mid = p - step_size/2 * potential_grad(q)
+    q_out = q + step_size * p_mid
+    p_out = p_mid + step_size/2 * potential_grad(q_out)
 
     return (p_out, q_out)
 
 
+@partial(jax.jit, static_argnums=(2,))
 def hamiltonian(p: Float[Array, " dim"], 
                 q: Float[Array, " dim"], 
                 potential: Callable[[Float[Array, " dim"]], Float]
@@ -80,6 +84,7 @@ def hamiltonian(p: Float[Array, " dim"],
     return potential(q) + jnp.sum(jnp.square(p))/2
 
 
+@partial(jax.jit, static_argnums=(4,))
 def HMC_acceptance(p: Float[Array, " dim"], 
                    q: Float[Array, " dim"], 
                    p_proposed: Float[Array, " dim"], 
@@ -101,7 +106,7 @@ def HMC_acceptance(p: Float[Array, " dim"],
     old_energy = hamiltonian(p, q, potential)
     new_energy = hamiltonian(p_proposed, q_proposed, potential)
 
-    return min(1, jnp.exp(old_energy - new_energy))
+    return jax.numpy.clip(jnp.exp(old_energy - new_energy), a_max=1)
 
 
 def sample_gaussian_max_coupling(x: Float[Array, " dim"], 
@@ -148,6 +153,8 @@ def sample_gaussian_max_coupling(x: Float[Array, " dim"],
         return x_proposed, y_proposed
 
 
+
+@partial(jax.jit, static_argnums=(3,4))
 def HMC_step(p: Float[Array, " dim"], 
              q: Float[Array, " dim"], 
              U: Float, 
@@ -171,14 +178,14 @@ def HMC_step(p: Float[Array, " dim"],
     Returns:
         A new state variable from a single step of Hamiltonian Monte Carlo.
     """
-    p_proposed, q_proposed = p, q
-    for i in range(num_steps):
-        p_proposed, q_proposed = leapfrog_step(p_proposed, 
-                                               q_proposed, 
-                                               potential_grad, 
-                                               step_size)
+    def inner(i, args):
+        p, q = args
+        return leapfrog_step(p, 
+                             q, 
+                             potential_grad, 
+                             step_size)
+    p_proposed, q_proposed = jax.lax.fori_loop(0, num_steps, inner, (p, q))
 
-    if U < HMC_acceptance(p, q, p_proposed, q_proposed, potential):
-        return q_proposed
-    else:
-        return q
+    accept = U < HMC_acceptance(p, q, p_proposed, q_proposed, potential)
+
+    return jax.lax.select(accept, q_proposed, q)
