@@ -68,13 +68,6 @@ def unbiased_HMC_step(Q1: Float[Array, " dim"],
                                 key)
 
     return jax.lax.cond(random_walk_choice, random_walk, hmc, args)
-#    if random_walk_choice:
-#        return coupled_randomwalk_step(Q1, Q2, std, marginal, key2)
-#    else:
-#        return coupled_HMC_step(Q1, Q2, 
-#                                potential, potential_grad, 
-#                                step_size, num_steps, 
-#                                key2)
 
 
 @partial(jax.jit, static_argnums=(2,3))
@@ -164,15 +157,3 @@ def coupled_randomwalk_step(Q1: Float[Array, " dim"],
                             Q2_proposed, Q2)
 
     return (Q1_out, Q2_out)
-
-#    if U < Q1_acceptance_probability:
-#        Q1_out = Q1_proposed
-#    else:
-#        Q1_out = Q1
-#
-#    if U < Q2_acceptance_probability:
-#        Q2_out = Q2_proposed
-#    else:
-#        Q2_out = Q2
-#
-#    return Q1_out, Q2_out

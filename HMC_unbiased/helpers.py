@@ -173,19 +173,6 @@ def sample_gaussian_max_coupling(x: Float[Array, " dim"],
     out = jax.lax.cond(W < y_prob, first_path, second_path, args)
     return out
 
-#    if W < y_prob:
-#        return x_proposed, x_proposed
-#    else:
-#        W = -1
-#        while W <= x_prob:
-#            subkey, key = jax.random.split(key)
-#            y_proposed = y + std * jax.random.normal(subkey, y.shape)
-#            x_prob = isotropic_gaussian_pdf(y_proposed, x, std)
-#            y_prob = isotropic_gaussian_pdf(y_proposed, y, std)
-#            subkey, key = jax.random.split(key)
-#            W = y_prob * jax.random.uniform(subkey)
-#
-#        return x_proposed, y_proposed
 
 
 
