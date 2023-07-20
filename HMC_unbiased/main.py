@@ -6,6 +6,7 @@ from .helpers import sample_gaussian_max_coupling, HMC_step
 
 from functools import partial
 
+@partial(jax.jit, static_argnums=(2,3,8))
 def unbiased_HMC_step(Q1: Float[Array, " dim"], 
                       Q2: Float[Array, " dim"], 
                       potential: Callable[[Float[Array, " dim"]], Float],
@@ -41,13 +42,39 @@ def unbiased_HMC_step(Q1: Float[Array, " dim"],
 
     key1, key2 = jax.random.split(key)
     random_walk_choice = jax.random.bernoulli(key1, gamma)
-    if random_walk_choice:
-        return coupled_randomwalk_step(Q1, Q2, std, marginal, key2)
-    else:
+    args = (Q1, 
+            Q2, 
+            step_size, 
+            num_steps, 
+            std, 
+            key2)
+
+    def random_walk(args):
+        Q1 = args[0]
+        Q2 = args[1]
+        std = args[4]
+        key = args[5]
+        return coupled_randomwalk_step(Q1, Q2, std, marginal, key)
+
+    def hmc(args):
+        Q1 = args[0]
+        Q2 = args[1]
+        step_size = args[2]
+        num_steps = args[3]
+        key = args[5]
         return coupled_HMC_step(Q1, Q2, 
                                 potential, potential_grad, 
                                 step_size, num_steps, 
-                                key2)
+                                key)
+
+    return jax.lax.cond(random_walk_choice, random_walk, hmc, args)
+#    if random_walk_choice:
+#        return coupled_randomwalk_step(Q1, Q2, std, marginal, key2)
+#    else:
+#        return coupled_HMC_step(Q1, Q2, 
+#                                potential, potential_grad, 
+#                                step_size, num_steps, 
+#                                key2)
 
 
 @partial(jax.jit, static_argnums=(2,3))
@@ -96,7 +123,7 @@ def coupled_HMC_step(Q1: Float[Array, " dim"],
     return Q1_out, Q2_out
 
 
-
+@partial(jax.jit, static_argnums=(3,))
 def coupled_randomwalk_step(Q1: Float[Array, " dim"], 
                             Q2: Float[Array, " dim"], 
                             std: Float, 
@@ -124,19 +151,28 @@ def coupled_randomwalk_step(Q1: Float[Array, " dim"],
     key1, key2 = jax.random.split(key, 2)
     Q1_proposed, Q2_proposed = sample_gaussian_max_coupling(Q1, Q2, std, key1)
 
-    Q1_acceptance_probability = min(1, marginal(Q1_proposed)/marginal(Q1))
-    Q2_acceptance_probability = min(1, marginal(Q2_proposed)/marginal(Q2))
+    # Note, these values may be over 1, but it does not impact the decision
+    Q1_acceptance_probability = marginal(Q1_proposed)/marginal(Q1)
+    Q2_acceptance_probability = marginal(Q2_proposed)/marginal(Q2)
 
     U = jax.random.uniform(key2)
 
-    if U < Q1_acceptance_probability:
-        Q1_out = Q1_proposed
-    else:
-        Q1_out = Q1
+    Q1_out = jax.lax.select(U < Q1_acceptance_probability,
+                            Q1_proposed, Q1)
 
-    if U < Q2_acceptance_probability:
-        Q2_out = Q2_proposed
-    else:
-        Q2_out = Q2
+    Q2_out = jax.lax.select(U < Q2_acceptance_probability,
+                            Q2_proposed, Q2)
 
-    return Q1_out, Q2_out
+    return (Q1_out, Q2_out)
+
+#    if U < Q1_acceptance_probability:
+#        Q1_out = Q1_proposed
+#    else:
+#        Q1_out = Q1
+#
+#    if U < Q2_acceptance_probability:
+#        Q2_out = Q2_proposed
+#    else:
+#        Q2_out = Q2
+#
+#    return Q1_out, Q2_out

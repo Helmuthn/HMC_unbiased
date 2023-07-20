@@ -109,6 +109,7 @@ def HMC_acceptance(p: Float[Array, " dim"],
     return jax.numpy.clip(jnp.exp(old_energy - new_energy), a_max=1)
 
 
+@jax.jit
 def sample_gaussian_max_coupling(x: Float[Array, " dim"], 
                                  y: Float[Array, " dim"], 
                                  std: Float, 
@@ -138,19 +139,53 @@ def sample_gaussian_max_coupling(x: Float[Array, " dim"],
     subkey, key = jax.random.split(key)
     W = x_prob * jax.random.uniform(subkey)
 
-    if W < y_prob:
+    def first_path(args):
+        x_proposed, x_prob, y_prob, key = args
         return x_proposed, x_proposed
-    else:
+    
+    def second_path(args):
+        x_proposed, x_prob, y_prob, key = args
         W = -1
-        while W <= x_prob:
+
+        def condition(args):
+            y_proposed, x_prob, y_prob, W, key = args
+            return W <= x_prob
+
+        def inner(args):
+            y_proposed, x_prob, y_prob, W, key = args
+
             subkey, key = jax.random.split(key)
             y_proposed = y + std * jax.random.normal(subkey, y.shape)
             x_prob = isotropic_gaussian_pdf(y_proposed, x, std)
             y_prob = isotropic_gaussian_pdf(y_proposed, y, std)
             subkey, key = jax.random.split(key)
             W = y_prob * jax.random.uniform(subkey)
+            return (y_proposed, x_prob, y_prob, W, key)
+
+        inner_args = (x_proposed, x_prob, y_prob, W, key)
+        y_proposed, x_prob, y_prob, W, key = jax.lax.while_loop(
+            condition, inner, inner_args
+        )
 
         return x_proposed, y_proposed
+
+    args = (x_proposed, x_prob, y_prob, key)
+    out = jax.lax.cond(W < y_prob, first_path, second_path, args)
+    return out
+
+#    if W < y_prob:
+#        return x_proposed, x_proposed
+#    else:
+#        W = -1
+#        while W <= x_prob:
+#            subkey, key = jax.random.split(key)
+#            y_proposed = y + std * jax.random.normal(subkey, y.shape)
+#            x_prob = isotropic_gaussian_pdf(y_proposed, x, std)
+#            y_prob = isotropic_gaussian_pdf(y_proposed, y, std)
+#            subkey, key = jax.random.split(key)
+#            W = y_prob * jax.random.uniform(subkey)
+#
+#        return x_proposed, y_proposed
 
 
 
