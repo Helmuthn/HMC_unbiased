@@ -9,7 +9,7 @@ It can be installed through pip using:
 
 The algorithm comes from the paper:
 
-    J Heng, P E Jacob, Unbiased Hamiltonian Monte Carlo With Couplings, 
+    J Heng, P E Jacob, "Unbiased Hamiltonian Monte Carlo With Couplings", 
     Biometrika, Volume 106, Issue 2, June 2019, Pages 287–302, 
     https://doi.org/10.1093/biomet/asy074
 
@@ -41,3 +41,56 @@ That is, with some probability $\gamma$, rather than take a step of HMC, instead
 
 
 ## Usage
+
+There are two main high-level functions in this implementation: `unbiased_HMC_chain` and `unbiased_HMC_step`.
+These functions construct a the full MCMC chain until convergence and an individual step, respectively.
+
+The general approach in this library is to begin with an unnormalized distribution, then construct the potential functions using `helpers.construct_potential`.
+While not a particularly useful application, in the following example, we use Hamiltonian Monte Carlo to approximate a multivariate Gaussian distribution.
+
+First, we begin with the required imports.
+We additionally import jit from jax to compile the target distribution.
+
+    from HMC_unbiased.helpers import construct_potential
+    from HMC_unbiased.main import unbiased_HMC_chain
+    from jax import jit
+    import jax.random as random
+
+Next, define a target distribution from which we will attempt to estimate the mean.
+In this case, it will be an offset Gaussian distribution.
+
+    @jit
+    def distribution(x):
+        squared_distance = -jnp.sum(jnp.square(x - 1))
+        normalized_distance = squared_distance / 2
+        density = jnp.exp(normalized_distance)/ ((2*jnp.pi)**(x.shape[0]/2))
+        return density
+    
+    potential, potential_grad = construct_potential(distribution)
+    
+We then define the hyperparameters for the Markov chains.
+
+    step_size = 0.05    # Leap-frog integrator step size
+    num_steps = 10      # Number of leap-frog steps per HMC step
+    gamma = 0.1         # Probability of random walk step
+    std = 0.2           # Standard Deviation of random walk step
+
+Choose some initialization for the Markov chains.
+
+    key = random.PRNGkey(1234)
+    key, subkey1, subkey2 = random.split(key, 3)
+    Q1 = random.gaussian(subkey1, 5)
+    Q2 = random.gaussian(subkey2, 5)
+
+Finally, we can construct our sample chains.
+
+    Q1, Q2, chain_length = unbiased_HMC_chain(Q1, Q2
+                                              potential, potential_grad
+                                              step_size, num_steps,
+                                              gamma,
+                                              std, marginal,
+                                              key)
+    
+    Q1 = Q1[:chain_length, :]
+    Q2 = Q2[:chain_length, :]
+
