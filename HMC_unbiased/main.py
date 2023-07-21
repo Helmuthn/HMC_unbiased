@@ -89,7 +89,7 @@ def unbiased_HMC_chain(Q1: Float[Array, " dim"],
     
     def condition(args):
         out1, out2, step_size, num_steps, std, gamma, key, i = args
-        return (out1[i,:] == out2[i,:]).all()
+        return (out1[i,:] != out2[i,:]).all() & (i < 10000)
 
 
     def loop_body(args):
