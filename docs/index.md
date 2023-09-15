@@ -62,6 +62,7 @@ We additionally import jit from jax to compile the target distribution.
     from HMC_unbiased.main import unbiased_HMC_chain
     from jax import jit
     import jax.random as random
+    import jax.numpy as jnp
 
 Next, define a target distribution from which we will attempt to estimate the mean.
 In this case, it will be an offset Gaussian distribution.
@@ -84,18 +85,18 @@ We then define the hyperparameters for the Markov chains.
 
 Choose some initialization for the Markov chains.
 
-    key = random.PRNGkey(1234)
+    key = random.PRNGKey(1234)
     key, subkey1, subkey2 = random.split(key, 3)
-    Q1 = random.gaussian(subkey1, 5)
-    Q2 = random.gaussian(subkey2, 5)
+    Q1 = random.normal(subkey1, (5,))
+    Q2 = random.normal(subkey2, (5,))
 
 Finally, we can construct our sample chains.
 
-    Q1, Q2, chain_length = unbiased_HMC_chain(Q1, Q2
-                                              potential, potential_grad
+    Q1, Q2, chain_length = unbiased_HMC_chain(Q1, Q2,
+                                              potential, potential_grad,
                                               step_size, num_steps,
                                               gamma,
-                                              std, marginal,
+                                              std, distribution,
                                               key)
     
     Q1 = Q1[:chain_length, :]
